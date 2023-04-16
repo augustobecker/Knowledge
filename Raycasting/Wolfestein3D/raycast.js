@@ -10,6 +10,12 @@ const FOV_ANGLE = 60 * (Math.PI / 180); // 60° degrees in radians
 const WALL_STRIP_WIDTH = 1; // in pixels
 const NUM_RAYS = WINDOW_WIDTH / WALL_STRIP_WIDTH;
 
+// Using Vectors instead if angles is faster for computers,
+// without the need to use sin, cos and tag operations
+// lodev course
+
+const MINIMAP_SCALE_FACTOR = 0.2;
+
 class Map
 {
 	constructor()
@@ -37,10 +43,16 @@ class Map
 			{
 				var tileX = j * TILE_SIZE;
 				var tileY = i * TILE_SIZE;
-				var tileColor = this.grid[i][j] == 1 ? "#111" : "#222";
+				var tileColor = this.grid[i][j] == 1
+				? "black" : "rgb(8,22,80)";
 				stroke("#111");
 				fill(tileColor);
-				rect(tileX, tileY, TILE_SIZE, TILE_SIZE);
+				rect(
+					tileX * MINIMAP_SCALE_FACTOR,
+					tileY * MINIMAP_SCALE_FACTOR,
+					TILE_SIZE * MINIMAP_SCALE_FACTOR,
+					TILE_SIZE * MINIMAP_SCALE_FACTOR
+					);
 			}
 		}
 	}
@@ -65,7 +77,7 @@ class Player
 	{
 		this.x = (WINDOW_WIDTH / 2) + 32;
 		this.y = (WINDOW_HEIGHT / 2) + 32;
-		this.radius = 5;
+		this.radius = 10;
 		this.turnDirection = 0;
 		this.walkDirection = 0;
 		this.rotationAngle = Math.PI / 2; // 90 degrees
@@ -76,14 +88,11 @@ class Player
 	render ()
 	{
 		noStroke();
-		fill("green");
-		circle(this.x, this.y, this.radius);
-		stroke("black");
-		line(
-			this.x,
-			this.y,
-			this.x + Math.cos(this.rotationAngle) * 10,
-			this.y + Math.sin(this.rotationAngle) * 10
+		fill("rgb(237,33,32)");
+		circle(
+			this.x * MINIMAP_SCALE_FACTOR,
+			this.y* MINIMAP_SCALE_FACTOR,
+			this.radius * MINIMAP_SCALE_FACTOR
 		);
 	}
 
@@ -121,7 +130,7 @@ class Ray
 		this.isRayFacingRight = !this.isRayFacingLeft;
 	}
 
-	cast(columnId)
+	cast()
 	{
 		///////////////////////////////////////////
 		// HORIZONTAL RAY-GRID INTERSECTION CODE //
@@ -152,7 +161,7 @@ class Ray
 		while ((nextHorzTouchX >= 0 && nextHorzTouchX <= WINDOW_WIDTH) &&
 		(nextHorzTouchY >= 0 && nextHorzTouchY <= WINDOW_HEIGHT))
 		{
-			if (grid.isWall(nextHorzTouchX, nextHorzTouchY - this.isRayFacingUp ? 1 : 0))
+			if (grid.isWall(nextHorzTouchX, nextHorzTouchY - this.isRayFacingUp))
 			{
 				foundHorzWallHit = true;
 				wallHorzHitX = nextHorzTouchX;
@@ -192,7 +201,7 @@ class Ray
 		while ((nextVertTouchX >= 0 && nextVertTouchX <= WINDOW_WIDTH) &&
 		(nextVertTouchY >= 0 && nextVertTouchY <= WINDOW_HEIGHT))
 		{
-			if (grid.isWall(nextVertTouchX - this.isRayFacingLeft ? -1 : 0, nextVertTouchY))
+			if (grid.isWall(nextVertTouchX - this.isRayFacingLeft, nextVertTouchY))
 			{
 				foundVertWallHit = true;
 				wallVertHitX = nextVertTouchX;
@@ -230,12 +239,12 @@ class Ray
 
 	render()
 	{
-		stroke("rgba(255,255,0,0.3)");
+		stroke("rgba(3,48,11,0.3)");
 		line(
-			player.x,
-			player.y,
-			this.wallHitX,
-			this.wallHitY
+			player.x * MINIMAP_SCALE_FACTOR,
+			player.y * MINIMAP_SCALE_FACTOR,
+			this.wallHitX * MINIMAP_SCALE_FACTOR,
+			this.wallHitY * MINIMAP_SCALE_FACTOR
 		);
 	}
 }
@@ -270,7 +279,6 @@ function keyReleased()
 
 function castAllRays()
 {
-	var columnId = 0;
 	var rayAngle = player.rotationAngle - (FOV_ANGLE / 2);
 
 	rays = [];
@@ -279,10 +287,34 @@ function castAllRays()
 	{
 		var ray = new Ray(rayAngle);
 		rays.push(ray);
-		ray.cast(columnId);
+		ray.cast();
 		rayAngle += FOV_ANGLE / NUM_RAYS;
+	}
+}
 
-		columnId++;
+function render3DProjectedWalls()
+{
+	for (var i = 0; i < NUM_RAYS; i++)
+	{
+		var ray = rays[i];
+
+		var correctWallDistance = ray.distance * Math.cos(ray.rayAngle - player.rotationAngle);
+		var distanceProjPlane = (WINDOW_WIDTH / 2) / Math.tan(FOV_ANGLE / 2);
+		var wallStripHeight = (TILE_SIZE / correctWallDistance) * distanceProjPlane;
+
+		var colorIntesity = 1 * (TILE_SIZE / correctWallDistance * 5);
+		if (correctWallDistance < TILE_SIZE * 2)
+			colorIntesity = 2.5;
+		if (ray.wasHitVertical)
+			colorIntesity *= 1.1;
+		noStroke();
+		fill(8 * colorIntesity, 22 * colorIntesity, 80 * colorIntesity)
+		rect(
+			i * WALL_STRIP_WIDTH,
+			(WINDOW_HEIGHT / 2) - (wallStripHeight / 2),
+			WALL_STRIP_WIDTH,
+			wallStripHeight
+		);
 	}
 }
 
@@ -313,7 +345,9 @@ function update()
 function draw()
 {
 	update();
-
+	fill("#000");
+	rect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+	render3DProjectedWalls();
 	grid.render();
 	for (ray of rays)
 	{
@@ -324,4 +358,3 @@ function draw()
 
 // Distance between each ray = FOV_ANGLE / NUM_RAYS
 // 60° for 320 rays
-
