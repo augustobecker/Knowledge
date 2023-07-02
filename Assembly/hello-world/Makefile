@@ -23,7 +23,7 @@ clean:
                 @echo "${NAME}: ${RED}Objects were destroyed${RESET}"
 
 fclean:         clean
-                rm -f NAME
+                rm -f ${NAME}
                 @echo "${NAME}: ${RED}${NAME} was destroyed${RESET}"
 
 re:             fclean all
